@@ -64,12 +64,20 @@ class EspAlgorithm:
         self._number_of_subpop = n
         self._input_size = input_size
         self._output_size = output_size
+        self._subpopulations = [[] for _ in range(h)]
         self.init_model = Model(self._input_size,
                                 self._output_size,
                                 hidden_dim=h)
 
     def _run_trials(self):
         pass
+
+    def _init_subpop(self):
+        for hidden_neuron_num, _ in enumerate(self._subpopulations):
+            new_individual = self._init_individual(torch.zeros((self.init_model.rnn.input_size +
+                                                                self.init_model.rnn.hidden_size +
+                                                                self.init_model.fc.out_features)))
+            self._subpopulations[hidden_neuron_num].append(new_individual)
 
     def _init_individual(self, input_tensor: torch.Tensor) -> torch.Tensor:
         """Inits an individual according to input tensor shape
