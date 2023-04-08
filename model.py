@@ -69,20 +69,63 @@ class EspAlgorithm:
                                 self._output_size,
                                 hidden_dim=h)
 
-    def _run_trials(self):
+    def _run_trials(self, x, y):
+        while (self._neurons_num_of_trials < self.trials_num).all():
+            # random indexes of neurons in subpopulations
+            neurons_indexes = np.random.randint(low=0,
+                                                high=self._number_in_subpop,
+                                                size=(self._number_of_hidden_neurons,))
+            # Getting together all needed chosen neurons and inserting them in neural net
+            gathered_neurons = self._subpopulations[
+                np.arange(len(self._subpopulations)), neurons_indexes]
+            model = Model(self._input_size, self._output_size, self._number_of_hidden_neurons)
+            model.change_weights(gathered_neurons)
+            # Calculating loss function
+            model_out = model.forward(x)
+            loss = log_loss(y, model_out)
+            # Appending number of trials and loss for each neuron in subpopulation
+            for i, index in enumerate(neurons_indexes):
+                self._neurons_num_of_trials[i][index] += 1
+                self._neurons_cumulative_loss[i][index] += loss
+            # Checking for best loss
+            if loss < self._best_loss:
+                self._best_loss = loss
+                self._best_model = model
+
+    def _check_stagnation(self):
         pass
 
-    def _init_subpop(self):
-        for hidden_neuron_num, _ in enumerate(self._subpopulations):
-            new_individual = self._init_individual(torch.zeros((self.init_model.rnn.input_size +
-                                                                self.init_model.rnn.hidden_size +
-                                                                self.init_model.fc.out_features)))
-            self._subpopulations[hidden_neuron_num].append(new_individual)
+    def _recombination(self):
+        self._average_cumulative_losses = np.sort(
+            self._neurons_cumulative_loss / self._neurons_num_of_trials)
+        for neuron_position in range(self._number_of_hidden_neurons):
+            for j in range(int(self._number_in_subpop / 4)):
+                # Subpopulation must be big
+                random_index = np.random.randint(low=0, high=j)
+                neurons = self._subpopulations[neuron_position]
+                crossovered_neurons = self._crossover([neurons[j], neurons[random_index],
+                                                       neurons[j * 2 + 1], neurons[j * 2 + 2]])
+                neurons[j], neurons[random_index], neurons[j * 2 + 1], neurons[j * 2 + 2] = \
+                    crossovered_neurons[0], crossovered_neurons[1], \
+                    crossovered_neurons[2], crossovered_neurons[3]
+            for j in range(int(self._number_in_subpop / 2), self._number_in_subpop):
+                self._subpopulations[neuron_position][j] = \
+                    self._mutate(self._subpopulations[neuron_position][j])
 
-    def _init_individual(self, input_tensor: torch.Tensor) -> torch.Tensor:
-        """Inits an individual according to input tensor shape
+    def _crossover(self, neurons: List) -> List:
+        # Gets 4 neurons: first by the loop, random neuron from quartile, *2 by the loop, *2 + 1 by the loop
+        crosspoint = np.random.randint(low=0,
+                                       high=len(neurons[0]) - 1)
+        neurons[2][:crosspoint] = neurons[0][:crosspoint]
+        neurons[3][crosspoint:] = neurons[1][crosspoint:]
+        return neurons
 
-        input_tensor: Tensor for making alike shaped individual.
+    def _mutate(self, neuron):
+        if np.random.rand() < self.mutation_rate:
+            gen_index_to_mutate = np.random.randint(low=0,
+                                                    high=len(neuron) - 1)
+            neuron[gen_index_to_mutate] = np.random.standard_cauchy() / 10
+        return neuron
 
         Returns a tensor with random numbers shaped like an input tensor.
         """
