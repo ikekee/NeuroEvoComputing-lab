@@ -13,10 +13,12 @@ class Model(nn.Module):
         # Defining some parameters
         self.hidden_dim = hidden_dim
         self.n_layers = 1
+        self.input_size = input_size
+        self.output_size = output_size
 
         # Defining the layers
         # RNN Layer
-        self.rnn = nn.RNN(input_size, hidden_dim, 1, batch_first=True,)
+        self.rnn = nn.RNN(input_size, hidden_dim, 1, batch_first=True, bias=False)
         self.fc = nn.Linear(hidden_dim, output_size, bias=False)
 
 
@@ -57,20 +59,32 @@ class Model(nn.Module):
 
 
 class EspAlgorithm:
-    def __init__(self, h: int, n: int, input_size: int, output_size: int):
+    # TODO: DONT FORGET THAT ARCHITECTURE CAN CHANGE
+    def __init__(self,
+                 h: int,
+                 n: int,
+                 b: int,
+                 input_size: int,
+                 output_size: int,
+                 trials_num: int = 10,
+                 mutation_rate: float = 0.5):
         """
 
         h: Number of hidden layer neurons.
         n: Number of individuals for subpopulations.
         """
         self._number_of_hidden_neurons = h
-        self._number_of_subpop = n
+        self._number_in_subpop = n
+        self._generations_before_burst = b
+        self.trials_num = trials_num
+        self.mutation_rate = mutation_rate
         self._input_size = input_size
         self._output_size = output_size
-        self._subpopulations = [[] for _ in range(h)]
-        self.init_model = Model(self._input_size,
-                                self._output_size,
-                                hidden_dim=h)
+        self._neurons_cumulative_loss = np.zeros((h, n))
+        self._neurons_num_of_trials = np.zeros((h, n))
+        self._subpopulations = np.random.rand(h, n, input_size + h + output_size)
+        self._best_loss = 10.0
+        self._best_model = None
 
     def _run_trials(self, x, y):
         while (self._neurons_num_of_trials < self.trials_num).all():
