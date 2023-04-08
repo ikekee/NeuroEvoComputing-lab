@@ -43,19 +43,13 @@ class Model(nn.Module):
         hidden = torch.zeros(self.n_layers, batch_size, self.hidden_dim)
         return hidden
 
-
-# n_epochs = 5
-#
-# for epoch in range(1, n_epochs + 1):
-#
-#     output, hidden = model(input_seq)
-#     loss = criterion(output, target_seq.view(-1).long())
-#     loss.backward()  # Does backpropagation and calculates gradients
-#     optimizer.step()  # Updates the weights accordingly
-#
-#     if epoch % 10 == 0:
-#         print('Epoch: {}/{}.............'.format(epoch, n_epochs), end=' ')
-#         print("Loss: {:.4f}".format(loss.item()))
+    def change_weights(self, gathered_neurons: np.ndarray):
+        self.rnn.weight_ih_l0 = torch.nn.parameter.Parameter(torch.from_numpy(
+            gathered_neurons[:, :self.input_size]), requires_grad=False)
+        self.rnn.weight_hh_l0 = torch.nn.parameter.Parameter(torch.from_numpy(
+            gathered_neurons[:, self.input_size:self.output_size]), requires_grad=False)
+        self.fc.weight = torch.nn.parameter.Parameter(torch.from_numpy(
+            gathered_neurons[:, self.output_size:]), requires_grad=False)
 
 
 class EspAlgorithm:
