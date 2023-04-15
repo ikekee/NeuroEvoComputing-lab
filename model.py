@@ -188,7 +188,8 @@ class EspAlgorithm:
                 neurons[-j-1], neurons[-random_index-1], neurons[-j * 2 - 2], neurons[-j * 2 - 3] = \
                     crossovered_neurons[0], crossovered_neurons[1], \
                     crossovered_neurons[2], crossovered_neurons[3]
-            for j in range(int(self._number_in_subpop / 2), self._number_in_subpop):
+            for j in range(int(self._number_in_subpop / 2),
+                           self._number_in_subpop):
                 self._subpopulations[neuron_position][j] = \
                     self._mutate(self._subpopulations[neuron_position][j])
 
@@ -210,12 +211,10 @@ class EspAlgorithm:
     def _burst_mutate(self):
         neuron_len = self._input_size + self._output_size + self._number_of_hidden_neurons
         for neuron_position in range(self._number_of_hidden_neurons):
-            try:
-                self._subpopulations[neuron_position] =\
-                    np.array([self._best_neurons[neuron_position] + np.random.standard_cauchy(neuron_len)
-                              for _ in range(self._number_in_subpop)])
-            except:
-                pass
+            self._subpopulations[neuron_position] =\
+                np.array([self._best_neurons[neuron_position] + np.random.standard_cauchy(neuron_len)
+                          for _ in range(self._number_in_subpop)])
+
 
     def _adapt_network_size(self):
         for neuron_position in range(self._number_of_hidden_neurons):
