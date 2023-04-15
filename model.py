@@ -108,28 +108,35 @@ class EspAlgorithm:
     def __init__(self,
                  h: int,
                  n: int,
-                 b: int,
-                 input_size: int,
-                 output_size: int,
-                 trials_num: int = 10,
-                 mutation_rate: float = 0.5):
+                 x: pd.DataFrame,
+                 y: pd.Series,
+                 b: int = 3,
+                 trials_num: int = 10.0,
+                 mutation_rate: float = 0.3,
+                 threshold: float = 1.0):
         """
-
         h: Number of hidden layer neurons.
         n: Number of individuals for subpopulations.
+        b: number of generations before burst mutation is invoked.
         """
         self._number_of_hidden_neurons = h
         self._number_in_subpop = n
         self._generations_before_burst = b
+        self.x = x.to_numpy()
+        self.y = y.to_numpy()
         self.trials_num = trials_num
         self.mutation_rate = mutation_rate
-        self._input_size = input_size
-        self._output_size = output_size
+        self.threshold = threshold
+        self._input_size = self.x.shape[1]
+        self._output_size = 1
         self._neurons_cumulative_loss = np.zeros((h, n))
         self._neurons_num_of_trials = np.zeros((h, n))
-        self._subpopulations = np.random.rand(h, n, input_size + h + output_size)
-        self._best_loss = 10.0
+        self._subpopulations = np.random.rand(h, n, self._input_size + h + self._output_size)
+        self._best_loss = None
+        self._unchanged_generations_num = 0
+        self._burst_mutations_in_row = 0
         self._best_model = None
+        self._best_neurons = None
 
     def _run_trials(self, x, y):
         while (self._neurons_num_of_trials < self.trials_num).all():
