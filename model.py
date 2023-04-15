@@ -105,7 +105,6 @@ class Model(nn.Module):
 
 
 class EspAlgorithm:
-    # TODO: DONT FORGET THAT ARCHITECTURE CAN CHANGE
     def __init__(self,
                  h: int,
                  n: int,
