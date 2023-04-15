@@ -207,11 +207,77 @@ class EspAlgorithm:
             neuron[gen_index_to_mutate] = np.random.standard_cauchy() / 10
         return neuron
 
-        Returns a tensor with random numbers shaped like an input tensor.
-        """
-        new_tensor = torch.empty_like(input_tensor)
-        return torch.nn.init.normal_(new_tensor)
+    def _burst_mutate(self):
+        neuron_len = self._input_size + self._output_size + self._number_of_hidden_neurons
+        for neuron_position in range(self._number_of_hidden_neurons):
+            try:
+                self._subpopulations[neuron_position] =\
+                    np.array([self._best_neurons[neuron_position] + np.random.standard_cauchy(neuron_len)
+                              for _ in range(self._number_in_subpop)])
+            except:
+                pass
 
+    def _adapt_network_size(self):
+        for neuron_position in range(self._number_of_hidden_neurons):
+            smaller_model = Model(self._input_size, self._output_size, self._number_of_hidden_neurons - 1)
+            smaller_best_neurons = np.delete(self._best_neurons, neuron_position, axis=0)
+            smaller_best_neurons = np.delete(
+                smaller_best_neurons, self._input_size + neuron_position, axis=1)
+            smaller_model.change_weights(smaller_best_neurons)
+            smaller_model_loss = smaller_model.evaluate_model(self.x, self.y)
+
+            if smaller_model_loss < self._best_loss * self.threshold:
+                self._number_of_hidden_neurons -= 1
+                self._subpopulations = np.delete(self._subpopulations, neuron_position, axis=0)
+                self._subpopulations = np.delete(self._subpopulations,
+                                                 self._input_size + neuron_position,
+                                                 axis=2)
+                self._best_model = smaller_model
+                self._best_loss = smaller_model_loss
+                self._best_neurons = smaller_best_neurons
+                return
+
+        new_subpopulation = np.random.rand(1, self._number_in_subpop, self._input_size + self._number_of_hidden_neurons + self._output_size)
+        self._subpopulations = np.append(self._subpopulations, new_subpopulation, axis=0)
+        self._number_of_hidden_neurons += 1
+        position_to_insert = self._input_size + self._number_of_hidden_neurons
+        self._subpopulations = \
+            np.insert(self._subpopulations,
+                      [position_to_insert],
+                      np.random.rand(self._number_of_hidden_neurons, self._number_in_subpop, 1), axis=2)
+        self._best_model = Model(self._input_size, self._output_size, self._number_of_hidden_neurons)
+        new_best_neurons = np.insert(self._best_neurons,
+                                     [self._input_size + self._number_of_hidden_neurons],
+                                     np.random.rand(self._number_of_hidden_neurons - 1, 1), axis=1)
+
+        new_best_neurons = np.append(new_best_neurons,
+                                     [self._subpopulations[-1][np.random.randint(0, self._number_in_subpop)]],
+                                     axis=0)
+        self._best_neurons = new_best_neurons
+        self._best_model.change_weights(new_best_neurons)
+        self._best_loss = self._best_model.evaluate_model(self.x, self.y)
+
+
+    def run_alg(self, goal_loss: float) -> Optional[Dict[str, List[float]]]:
+        history = {'loss': [],
+                   'models': [],
+                   'accuracy': []}
+
+        while True:
+            self._neurons_cumulative_loss = np.zeros((self._number_of_hidden_neurons, self._number_in_subpop))
+            self._neurons_num_of_trials = np.zeros((self._number_of_hidden_neurons, self._number_in_subpop))
+            beginning_best_loss = self._best_loss
+            self._run_trials(self.x, self.y)
+            print(self._number_of_hidden_neurons, self._best_loss)
+            history['loss'].append(self._best_loss)
+            history['models'].append(self._best_model)
+            history['accuracy'].append(self._best_model.evaluate_metrics(self.x, self.y))
+            if beginning_best_loss == self._best_loss:
+                self._unchanged_generations_num += 1
+            self._check_stagnation()
+            self._recombination()
+            if self._best_loss < goal_loss:
+                return history
 
 
 if __name__ == '__main__':
