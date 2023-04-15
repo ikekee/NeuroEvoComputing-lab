@@ -192,7 +192,7 @@ class EspAlgorithm:
                 self._subpopulations[neuron_position][j] = \
                     self._mutate(self._subpopulations[neuron_position][j])
 
-    def _crossover(self, neurons: List) -> List:
+    def _crossover(self, neurons: List[np.ndarray]) -> List[np.ndarray]:
         # Gets 4 neurons: first by the loop, random neuron from quartile, *2 by the loop, *2 + 1 by the loop
         crosspoint = np.random.randint(low=0,
                                        high=len(neurons[0]) - 1)
@@ -200,7 +200,7 @@ class EspAlgorithm:
         neurons[3][crosspoint:] = neurons[1][crosspoint:]
         return neurons
 
-    def _mutate(self, neuron):
+    def _mutate(self, neuron: np.ndarray) -> np.ndarray:
         if np.random.rand() < self.mutation_rate:
             gen_index_to_mutate = np.random.randint(low=0,
                                                     high=len(neuron) - 1)
