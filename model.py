@@ -54,7 +54,7 @@ class Model(nn.Module):
         # RNN Layer
         self.rnn = nn.RNN(input_size, hidden_dim, 1, batch_first=True, bias=False)
         self.fc = nn.Linear(hidden_dim, output_size, bias=False)
-
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
         batch_size = x.size(0)
