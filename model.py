@@ -140,7 +140,7 @@ class EspAlgorithm:
         self._best_neurons = None
 
     def _run_trials(self, x, y):
-        while (self._neurons_num_of_trials < self.trials_num).all():
+        while (self._neurons_num_of_trials < self.trials_num).any():
             # random indexes of neurons in subpopulations
             neurons_indexes = np.random.randint(low=0,
                                                 high=self._number_in_subpop,
@@ -151,8 +151,9 @@ class EspAlgorithm:
             model = Model(self._input_size, self._output_size, self._number_of_hidden_neurons)
             model.change_weights(gathered_neurons)
             # Calculating loss function
-            model_out = model.forward(x)
-            loss = log_loss(y, model_out)
+            loss = model.evaluate_model(x, y)
+            if self._best_loss is None:
+                self._best_loss = loss
             # Appending number of trials and loss for each neuron in subpopulation
             for i, index in enumerate(neurons_indexes):
                 self._neurons_num_of_trials[i][index] += 1
@@ -161,6 +162,8 @@ class EspAlgorithm:
             if loss < self._best_loss:
                 self._best_loss = loss
                 self._best_model = model
+                self._best_neurons = gathered_neurons
+                self._unchanged_generations_num = 0
 
     def _check_stagnation(self):
         pass
