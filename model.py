@@ -176,16 +176,16 @@ class EspAlgorithm:
         self._burst_mutations_in_row = 0
 
     def _recombination(self):
-        self._average_cumulative_losses = np.sort(
+        self._average_cumulative_losses = -np.sort(-
             self._neurons_cumulative_loss / self._neurons_num_of_trials)
         for neuron_position in range(self._number_of_hidden_neurons):
             for j in range(int(self._number_in_subpop / 4)):
                 # Subpopulation must be big
-                random_index = np.random.randint(low=0, high=j)
+                random_index = np.random.randint(low=0, high=j + 1)
                 neurons = self._subpopulations[neuron_position]
                 crossovered_neurons = self._crossover([neurons[j], neurons[random_index],
                                                        neurons[j * 2 + 1], neurons[j * 2 + 2]])
-                neurons[j], neurons[random_index], neurons[j * 2 + 1], neurons[j * 2 + 2] = \
+                neurons[-j-1], neurons[-random_index-1], neurons[-j * 2 - 2], neurons[-j * 2 - 3] = \
                     crossovered_neurons[0], crossovered_neurons[1], \
                     crossovered_neurons[2], crossovered_neurons[3]
             for j in range(int(self._number_in_subpop / 2), self._number_in_subpop):
