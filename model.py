@@ -74,6 +74,14 @@ class Model(nn.Module):
         hidden = torch.zeros((1, 1, self.hidden_dim), dtype=torch.double)
         return hidden
 
+    def evaluate_model(self, x: np.ndarray, y: np.ndarray) -> float:
+        x = torch.from_numpy(x)
+        y = torch.from_numpy(y)
+        x = torch.unsqueeze(x, dim=0)
+        model_out, _ = self.forward(x)
+        loss = log_loss(y, model_out)
+        return loss
+
     def change_weights(self, gathered_neurons: np.ndarray):
         self.rnn.weight_ih_l0 = torch.nn.parameter.Parameter(torch.from_numpy(
             gathered_neurons[:, :self.input_size]), requires_grad=False)
