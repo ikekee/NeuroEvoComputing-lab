@@ -57,17 +57,14 @@ class Model(nn.Module):
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        batch_size = x.size(0)
-
         # Initializing hidden state for first input using method defined below
-        hidden = self.init_hidden(batch_size)
-
+        hidden = self.init_hidden()
         # Passing in the input and hidden state into the model and obtaining outputs
-        out, hidden = self.rnn(x, hidden)
+        rnn_out, hidden = self.rnn(x, hidden)
 
-        # Reshaping the outputs such that it can be fit into the fully connected layer
-        out = out.contiguous().view(-1, self.hidden_dim)
-        out = self.fc(out)
+        fc_out = self.fc(rnn_out)
+        out = self.sigmoid(fc_out)
+        out = out.contiguous().view(-1)
 
         return out, hidden
 
