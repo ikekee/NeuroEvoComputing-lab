@@ -166,7 +166,14 @@ class EspAlgorithm:
                 self._unchanged_generations_num = 0
 
     def _check_stagnation(self):
-        pass
+        if self._unchanged_generations_num >= self._generations_before_burst:
+            if self._burst_mutations_in_row == 2:
+                self._adapt_network_size()
+            else:
+                self._burst_mutate()
+                self._burst_mutations_in_row += 1
+                return
+        self._burst_mutations_in_row = 0
 
     def _recombination(self):
         self._average_cumulative_losses = np.sort(
