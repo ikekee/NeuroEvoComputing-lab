@@ -68,10 +68,10 @@ class Model(nn.Module):
 
         return out, hidden
 
-    def init_hidden(self, batch_size):
+    def init_hidden(self):
         # This method generates the first hidden state of zeros which we'll use in the forward pass
         # We'll send the tensor holding the hidden state to the device we specified earlier as well
-        hidden = torch.zeros(self.n_layers, batch_size, self.hidden_dim)
+        hidden = torch.zeros((1, 1, self.hidden_dim), dtype=torch.double)
         return hidden
 
     def change_weights(self, gathered_neurons: np.ndarray):
