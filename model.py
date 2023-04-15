@@ -103,6 +103,7 @@ class Model(nn.Module):
         accuracy = accuracy_score(y, model_out.numpy())
         return accuracy
 
+
 class EspAlgorithm:
     # TODO: DONT FORGET THAT ARCHITECTURE CAN CHANGE
     def __init__(self,
