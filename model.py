@@ -257,7 +257,6 @@ class EspAlgorithm:
         self._best_model.change_weights(new_best_neurons)
         self._best_loss = self._best_model.evaluate_model(self.x, self.y)
 
-
     def run_alg(self, goal_loss: float) -> Optional[Dict[str, List[float]]]:
         history = {'loss': [],
                    'models': [],
