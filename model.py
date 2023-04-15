@@ -83,12 +83,17 @@ class Model(nn.Module):
         return loss
 
     def change_weights(self, gathered_neurons: np.ndarray):
-        self.rnn.weight_ih_l0 = torch.nn.parameter.Parameter(torch.from_numpy(
+        self.rnn.weight_ih_l0 = torch.nn.parameter.Parameter(
+            torch.from_numpy(
             gathered_neurons[:, :self.input_size]), requires_grad=False)
-        self.rnn.weight_hh_l0 = torch.nn.parameter.Parameter(torch.from_numpy(
-            gathered_neurons[:, self.input_size:self.output_size]), requires_grad=False)
-        self.fc.weight = torch.nn.parameter.Parameter(torch.from_numpy(
-            gathered_neurons[:, self.output_size:]), requires_grad=False)
+        self.rnn.weight_hh_l0 = torch.nn.parameter.Parameter(
+            torch.from_numpy(
+            gathered_neurons[:, self.input_size:-self.output_size]),
+            requires_grad=False)
+        self.fc.weight = torch.nn.parameter.Parameter(
+            torch.transpose(torch.from_numpy(
+            gathered_neurons[:, -self.output_size:]), 0, 1),
+            requires_grad=False)
 
 
 class EspAlgorithm:
