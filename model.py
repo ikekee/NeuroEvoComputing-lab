@@ -95,6 +95,13 @@ class Model(nn.Module):
             gathered_neurons[:, -self.output_size:]), 0, 1),
             requires_grad=False)
 
+    def evaluate_metrics(self, x: np.ndarray, y: np.ndarray) -> float:
+        torch_x = torch.from_numpy(x)
+        torch_x = torch.unsqueeze(torch_x, dim=0)
+        model_out, _ = self.forward(torch_x)
+        model_out = torch.where(model_out >= 0.5, 1.0, 0.0)
+        accuracy = accuracy_score(y, model_out.numpy())
+        return accuracy
 
 class EspAlgorithm:
     # TODO: DONT FORGET THAT ARCHITECTURE CAN CHANGE
