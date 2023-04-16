@@ -24,13 +24,16 @@ def visualize_metric_per_epoch(metric: List[float], metric_name: str):
     x = range(len(metric))
     y = metric
     plt.figure(figsize=(15, 10))
+    plt.grid(True)
     plt.xlabel('Номер итерации')
     if metric_name == 'loss':
         plt.ylabel('Значение функции потерь')
     if metric_name == 'accuracy':
         plt.ylabel('Значение точности')
-    plt.ylabel('Значение функции потерь')
+    if metric_name == 'hidden':
+        plt.ylabel('Количество нейронов на скрытом слое')
     plt.plot(x, y)
+    plt.savefig(f'{metric_name}.png')
 
 
 def save_model(model: nn.Module, path: str):
