@@ -221,7 +221,10 @@ class EspAlgorithm:
 
     def _adapt_network_size(self):
         for neuron_position in range(self._number_of_hidden_neurons):
-            smaller_model = Model(self._input_size, self._output_size, self._number_of_hidden_neurons - 1)
+            smaller_model = Model(
+                self._input_size,
+                self._output_size,
+                self._number_of_hidden_neurons - 1)
             smaller_best_neurons = np.delete(self._best_neurons, neuron_position, axis=0)
             smaller_best_neurons = np.delete(
                 smaller_best_neurons, self._input_size + neuron_position, axis=1)
@@ -252,9 +255,10 @@ class EspAlgorithm:
                                      [self._input_size + self._number_of_hidden_neurons],
                                      np.random.rand(self._number_of_hidden_neurons - 1, 1), axis=1)
 
-        new_best_neurons = np.append(new_best_neurons,
-                                     [self._subpopulations[-1][np.random.randint(0, self._number_in_subpop)]],
-                                     axis=0)
+        new_best_neurons = np.append(
+            new_best_neurons,
+            [self._subpopulations[-1][np.random.randint(0, self._number_in_subpop)]],
+            axis=0)
         self._best_neurons = new_best_neurons
         self._best_model.change_weights(new_best_neurons)
         self._best_loss = self._best_model.evaluate_model(self.x, self.y)
