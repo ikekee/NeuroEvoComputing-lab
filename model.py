@@ -266,22 +266,27 @@ class EspAlgorithm:
     def run_alg(self, goal_loss: float) -> Optional[Dict[str, List[float]]]:
         history = {'loss': [],
                    'models': [],
-                   'accuracy': []}
+                   'accuracy': [],
+                   'models_hidden_size': []}
 
         while True:
-            self._neurons_cumulative_loss = np.zeros((self._number_of_hidden_neurons, self._number_in_subpop))
-            self._neurons_num_of_trials = np.zeros((self._number_of_hidden_neurons, self._number_in_subpop))
-            beginning_best_loss = self._best_loss
-            self._run_trials(self.x, self.y)
-            print(self._number_of_hidden_neurons, self._best_loss)
-            history['loss'].append(self._best_loss)
-            history['models'].append(self._best_model)
-            history['accuracy'].append(self._best_model.evaluate_metrics(self.x, self.y))
-            if beginning_best_loss == self._best_loss:
-                self._unchanged_generations_num += 1
-            self._check_stagnation()
-            self._recombination()
-            if self._best_loss < goal_loss:
+            try:
+                self._neurons_cumulative_loss = np.zeros((self._number_of_hidden_neurons, self._number_in_subpop))
+                self._neurons_num_of_trials = np.zeros((self._number_of_hidden_neurons, self._number_in_subpop))
+                beginning_best_loss = self._best_loss
+                self._run_trials(self.x, self.y)
+                print(self._number_of_hidden_neurons, self._best_loss)
+                history['loss'].append(self._best_loss)
+                history['models'].append(self._best_model)
+                history['models_hidden_size'].append(self._number_of_hidden_neurons)
+                history['accuracy'].append(self._best_model.evaluate_metrics(self.x, self.y))
+                if beginning_best_loss == self._best_loss:
+                    self._unchanged_generations_num += 1
+                self._check_stagnation()
+                self._recombination()
+                if self._best_loss < goal_loss:
+                    return history
+            except KeyboardInterrupt:
                 return history
 
 
