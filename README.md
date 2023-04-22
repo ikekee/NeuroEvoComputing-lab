@@ -1,5 +1,6 @@
 # NeuroEvoComputing-lab
 Educational implementation of neuroevolutionary ESP-algorithm for training recurrent neural network.
+Project was made within course of Neuroevolutionary Computing in Tomsk Polytechnic University.
 </br>
 ### Used packages
 ---
