@@ -1,4 +1,4 @@
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple, Union
 
 import torch
 from torch import nn
@@ -6,6 +6,8 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import log_loss, accuracy_score
 import matplotlib.pyplot as plt
+import threading
+from sklearn import preprocessing
 
 SMALL_SIZE = 14
 MEDIUM_SIZE = 16
@@ -18,6 +20,9 @@ plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
+seed = 42
+np.random.seed(seed=seed)
 
 
 def visualize_metric_per_epoch(metric: List[float], metric_name: str):
@@ -47,7 +52,6 @@ def load_model(path) -> nn.Module:
 class Model(nn.Module):
     def __init__(self, input_size, output_size, hidden_dim):
         super(Model, self).__init__()
-
         # Defining some parameters
         self.hidden_dim = hidden_dim
         self.n_layers = 1
@@ -112,11 +116,12 @@ class EspAlgorithm:
     def __init__(self,
                  h: int,
                  n: int,
-                 x: pd.DataFrame,
-                 y: pd.Series,
-                 b: int = 3,
+                 x: Union[pd.DataFrame, np.ndarray],
+                 y: Union[pd.Series, np.ndarray],
+                 threads_num: int,
+                 b: int = 5,
                  trials_num: int = 10.0,
-                 mutation_rate: float = 0.3,
+                 mutation_rate: float = 0.6,
                  threshold: float = 1.0):
         """
         h: Number of hidden layer neurons.
@@ -126,8 +131,15 @@ class EspAlgorithm:
         self._number_of_hidden_neurons = h
         self._number_in_subpop = n
         self._generations_before_burst = b
-        self.x = x.to_numpy()
-        self.y = y.to_numpy()
+        if isinstance(x, pd.DataFrame):
+            self.x = x.to_numpy()
+        else:
+            self.x = x
+        if isinstance(y, pd.Series):
+            self.y = y.to_numpy()
+        else:
+            self.y = y
+        self._threads_num = threads_num
         self.trials_num = trials_num
         self.mutation_rate = mutation_rate
         self.threshold = threshold
@@ -141,6 +153,20 @@ class EspAlgorithm:
         self._burst_mutations_in_row = 0
         self._best_model = None
         self._best_neurons = None
+
+    def _run_part_trials(self,
+                         neurons_list: List[np.ndarray],
+                         neurons_indexes: List[np.ndarray],
+                         model_params: Tuple[int],
+                         x, y):
+        for i, neurons in enumerate(neurons_list):
+            model = Model(model_params[0], model_params[1], model_params[2])
+            model.change_weights(neurons)
+            # Calculating loss function
+            loss = model.evaluate_model(x, y)
+            losses_dict[loss] = {model: neurons}
+
+            cumulative_loss[np.arange(len(cumulative_loss)), neurons_indexes[i]] += loss
 
     def _run_trials(self, x, y):
         while (self._neurons_num_of_trials < self.trials_num).any():
@@ -162,20 +188,60 @@ class EspAlgorithm:
                 self._neurons_num_of_trials[i][index] += 1
                 self._neurons_cumulative_loss[i][index] += loss
             # Checking for best loss
-            if loss < self._best_loss:
-                self._best_loss = loss
-                self._best_model = model
-                self._best_neurons = gathered_neurons
-                self._unchanged_generations_num = 0
+            # if loss < self._best_loss:
+            #     self._best_loss = loss
+            #     self._best_model = model
+            #     self._best_neurons = gathered_neurons
+            #     self._unchanged_generations_num = 0
+
+    def _run_trials_parallel(self, x, y, threads_num: int):
+        neurons_to_try = []
+        neurons_to_try_indexes = []
+        model_params = (self._input_size, self._output_size, self._number_of_hidden_neurons)
+        while (self._neurons_num_of_trials < self.trials_num).any():
+            neurons_indexes = np.random.randint(low=0,
+                                                high=self._number_in_subpop,
+                                                size=(self._number_of_hidden_neurons,))
+            gathered_neurons = self._subpopulations[
+                np.arange(len(self._subpopulations)), neurons_indexes]
+            neurons_to_try.append(gathered_neurons)
+            neurons_to_try_indexes.append(neurons_indexes)
+            self._neurons_num_of_trials[
+                np.arange(len(self._neurons_num_of_trials)), neurons_indexes] += 1
+
+        global losses_dict
+        global cumulative_loss
+        losses_dict = {}
+        cumulative_loss = np.zeros((self._number_of_hidden_neurons, self._number_in_subpop))
+
+        current_active_threads = threading.active_count()
+        for thread_num in range(threads_num):
+            beginning = int(len(neurons_to_try) * thread_num / threads_num)
+            end = int(len(neurons_to_try) * (thread_num + 1) / threads_num)
+            threading.Thread(target=self._run_part_trials,
+                             args=(neurons_to_try[beginning: end],
+                                   neurons_to_try_indexes[beginning: end],
+                                   model_params,
+                                   x, y)).start()
+        while threading.active_count() != current_active_threads:
+            pass
+
+        self._neurons_cumulative_loss = cumulative_loss
+        if self._best_loss is None or np.min(list(losses_dict.keys())) < self._best_loss:
+            self._best_loss = np.min(list(losses_dict.keys()))
+            self._best_model = list(losses_dict[self._best_loss].keys())[0]
+            self._best_neurons = losses_dict[self._best_loss][self._best_model]
 
     def _check_stagnation(self):
         if self._unchanged_generations_num >= self._generations_before_burst:
             if self._burst_mutations_in_row == 2:
                 self._adapt_network_size()
+                self.size_changed = True
             else:
-                self._burst_mutate()
+                self._burst_mutate_parallel(self._threads_num)
                 self._burst_mutations_in_row += 1
                 return
+            self._unchanged_generations_num = 0
         self._burst_mutations_in_row = 0
 
     def _recombination(self):
@@ -196,6 +262,47 @@ class EspAlgorithm:
                 self._subpopulations[neuron_position][j] = \
                     self._mutate(self._subpopulations[neuron_position][j])
 
+    def _part_recombination(self, neurons_positions: np.ndarray, number_in_subpop: int):
+        for neuron_position in neurons_positions:
+            neurons_population = subpop[neuron_position]
+            for j in range(int(number_in_subpop / 4)):
+                # Subpopulation must be big
+                random_index = np.random.randint(low=0, high=j + 1)
+                crossovered_neurons = self._crossover([neurons_population[j],
+                                                       neurons_population[random_index],
+                                                       neurons_population[j * 2 + 1],
+                                                       neurons_population[j * 2 + 2]])
+                neurons_population[-j-1], neurons_population[-random_index-1], neurons_population[-j * 2 - 2], neurons_population[-j * 2 - 3] = \
+                    crossovered_neurons[0], crossovered_neurons[1], \
+                    crossovered_neurons[2], crossovered_neurons[3]
+            for j in range(int(number_in_subpop / 2), number_in_subpop):
+                neurons_population[j] = self._mutate(neurons_population[j])
+
+    def _parallel_recombination(self, threads_num):
+        self._average_cumulative_losses = -np.sort(-
+            self._neurons_cumulative_loss / self._neurons_num_of_trials)
+        try:
+            sorted_neurons = np.take_along_axis(
+                self._subpopulations,
+                np.expand_dims(np.argsort(self._average_cumulative_losses, axis=1), axis=2), axis=1)
+        except IndexError:
+            print(self._subpopulations.shape, np.argsort(self._average_cumulative_losses, axis=1).shape)
+            raise Exception
+        global subpop
+        subpop = sorted_neurons
+
+        current_active_threads = threading.active_count()
+        for thread_num in range(threads_num):
+            beginning = int(len(subpop) * thread_num / threads_num)
+            end = int(len(subpop) * (thread_num + 1) / threads_num)
+
+            threading.Thread(target=self._part_recombination,
+                             args=(range(len(subpop))[beginning: end],
+                                   self._number_in_subpop)).start()
+        while threading.active_count() != current_active_threads:
+            pass
+        self._subpopulations = subpop
+
     def _crossover(self, neurons: List[np.ndarray]) -> List[np.ndarray]:
         # Gets 4 neurons: first by the loop, random neuron from quartile, *2 by the loop, *2 + 1 by the loop
         crosspoint = np.random.randint(low=0,
@@ -211,6 +318,12 @@ class EspAlgorithm:
             neuron[gen_index_to_mutate] = np.random.standard_cauchy() / 10
         return neuron
 
+    def _part_burst_mutate(self, neurons_positions, neuron_len: int):
+        for neuron_position in neurons_positions:
+            subpop[neuron_position] = np.array([
+                self._best_neurons[neuron_position] + np.random.standard_cauchy(neuron_len)
+                for _ in range(self._number_in_subpop)])
+
     def _burst_mutate(self):
         neuron_len = self._input_size + self._output_size + self._number_of_hidden_neurons
         for neuron_position in range(self._number_of_hidden_neurons):
@@ -218,6 +331,21 @@ class EspAlgorithm:
                 np.array([self._best_neurons[neuron_position] + np.random.standard_cauchy(neuron_len)
                           for _ in range(self._number_in_subpop)])
 
+    def _burst_mutate_parallel(self, threads_num: int):
+        global subpop
+        subpop = self._subpopulations
+        neuron_len = self._input_size + self._output_size + self._number_of_hidden_neurons
+        current_active_threads = threading.active_count()
+        for thread_num in range(threads_num):
+            beginning = int(len(subpop) * thread_num / threads_num)
+            end = int(len(subpop) * (thread_num + 1) / threads_num)
+
+            threading.Thread(target=self._part_burst_mutate,
+                             args=(range(len(subpop))[beginning: end],
+                                   neuron_len)).start()
+        while threading.active_count() != current_active_threads:
+            pass
+        self._subpopulations = subpop
 
     def _adapt_network_size(self):
         for neuron_position in range(self._number_of_hidden_neurons):
@@ -271,19 +399,32 @@ class EspAlgorithm:
 
         while True:
             try:
-                self._neurons_cumulative_loss = np.zeros((self._number_of_hidden_neurons, self._number_in_subpop))
-                self._neurons_num_of_trials = np.zeros((self._number_of_hidden_neurons, self._number_in_subpop))
+                self.size_changed = False
+                self._neurons_cumulative_loss = np.zeros((self._number_of_hidden_neurons,
+                                                          self._number_in_subpop))
+                self._neurons_num_of_trials = np.zeros((self._number_of_hidden_neurons,
+                                                        self._number_in_subpop))
                 beginning_best_loss = self._best_loss
-                self._run_trials(self.x, self.y)
-                print(self._number_of_hidden_neurons, self._best_loss)
+                self._run_trials_parallel(self.x, self.y, self._threads_num)
                 history['loss'].append(self._best_loss)
                 history['models'].append(self._best_model)
                 history['models_hidden_size'].append(self._number_of_hidden_neurons)
-                history['accuracy'].append(self._best_model.evaluate_metrics(self.x, self.y))
-                if beginning_best_loss == self._best_loss:
-                    self._unchanged_generations_num += 1
+                try:
+                    history['accuracy'].append(self._best_model.evaluate_metrics(self.x, self.y))
+                except RuntimeError:
+                    pass
+                print(self._number_of_hidden_neurons, self._best_loss)
+                if beginning_best_loss is not None and self._best_loss is not None:
+                    if beginning_best_loss <= self._best_loss:
+                        self._unchanged_generations_num += 1
+                    else:
+                        self._unchanged_generations_num = 0
                 self._check_stagnation()
-                self._recombination()
+                if self.size_changed:
+                    if self._best_loss < goal_loss:
+                        return history
+                    continue
+                self._parallel_recombination(self._threads_num)
                 if self._best_loss < goal_loss:
                     return history
             except KeyboardInterrupt:
@@ -291,4 +432,9 @@ class EspAlgorithm:
 
 
 if __name__ == '__main__':
-    pass
+
+    dataset = pd.read_csv('pima-indians-diabetes.data', header=None)
+    dataset.iloc[:, :-1] = preprocessing.normalize(dataset.iloc[:, :-1])
+
+    ESP = EspAlgorithm(3, 4, b=10, x=dataset.iloc[:, :-1], y=dataset.iloc[:, -1], threads_num=2)
+    history = ESP.run_alg(0.1)
